@@ -15,19 +15,14 @@ The system is fully self-hosted — no cloud AI services are involved. Classific
 
 ## Architecture
 
-The system is composed of two Docker services orchestrated via docker-compose:
+The system is published as a single all-in-one Docker image that bundles:
 
-### Services
-
-- **`analyst`**: A Node.js application that:
-  - Spawns mail-mcp as a child process using MCP SDK's `StdioClientTransport`
-  - Calls Ollama's REST API for email classification
-  - Executes sorting actions based on classification results
-
-- **`ollama`**: The official `ollama/ollama` Docker image serving the Gemma 2B quantized model for local inference.
+- **Node.js analyst app**: Spawns mail-mcp as a child process using MCP SDK's `StdioClientTransport`, calls Ollama for classification, and executes sorting actions.
+- **Ollama runtime**: Embedded in the container, started by the entrypoint script. The Gemma 2B model is pulled automatically on first boot.
 
 ### Key Design Decisions
 
+- **All-in-one container**: Users pull a single image and only need to provide env vars + a rules file. No compose file or second container required.
 - **mail-mcp as npm dependency**: Installed from `github:philippgehrig/mail-mcp`. This allows the analyst to communicate with any IMAP/SMTP server through the well-defined MCP tool interface without reimplementing email protocols.
 - **MCP stdio transport**: On startup, the analyst spawns the mail-mcp subprocess and connects via the MCP SDK's `StdioClientTransport`, enabling structured tool calls for email operations.
 - **Local LLM**: All classification happens on-device via Ollama, ensuring email content never leaves the user's infrastructure.
@@ -49,7 +44,7 @@ Connection and runtime settings are configured via environment variables:
 | `MAIL_USER` | Email account username | *(required)* |
 | `MAIL_PASSWORD` | Email account password | *(required)* |
 | `MAIL_FROM` | Sender address for forwarded emails | `MAIL_USER` |
-| `OLLAMA_URL` | Ollama API endpoint | `http://ollama:11434` |
+| `OLLAMA_URL` | Ollama API endpoint | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Model to use for classification | `gemma2:2b` |
 | `MODE` | Operating mode | *(required)* |
 | `INTERVAL` | Processing interval (scheduled mode only) | `15m` |
@@ -266,53 +261,56 @@ mail-map-analyst/
 
 ## Docker Setup
 
-### docker-compose.yml
+### Single Container (All-in-One)
 
-```yaml
-services:
-  analyst:
-    build: .
-    env_file: .env
-    volumes:
-      - ./config/rules.yaml:/app/config/rules.yaml:ro
-    depends_on:
-      ollama:
-        condition: service_healthy
-    restart: unless-stopped
+The published image bundles everything — users just run:
 
-  ollama:
-    image: ollama/ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  ollama_data:
+```bash
+docker run -d \
+  --name mail-map-analyst \
+  -e IMAP_HOST=imap.example.com \
+  -e SMTP_HOST=smtp.example.com \
+  -e MAIL_USER=you@example.com \
+  -e MAIL_PASSWORD=secret \
+  -e MODE=daemon \
+  -v /path/to/rules.yaml:/app/config/rules.yaml:ro \
+  -v mail-analyst-ollama:/root/.ollama \
+  thisphilipp/mail-map-analyst:latest
 ```
 
 ### Dockerfile
 
 ```dockerfile
-FROM node:20-slim
-
+FROM node:20-slim AS builder
 WORKDIR /app
-
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
-
+RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
 
-ENTRYPOINT ["node", "dist/index.js"]
+FROM node:20-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates zstd && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://ollama.com/install.sh | sh
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY --from=builder /app/dist ./dist
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+ENV OLLAMA_URL=http://localhost:11434
+ENV OLLAMA_MODEL=gemma2:2b
+ENTRYPOINT ["/app/entrypoint.sh"]
 ```
 
-The entrypoint script checks Ollama model availability and pulls the model if missing before starting the main application logic.
+### Entrypoint
+
+The `entrypoint.sh` script:
+1. Starts Ollama in the background
+2. Waits for Ollama to be ready
+3. Pulls the model if not already present
+4. Starts the Node.js analyst app
 
 ---
 

@@ -32,7 +32,7 @@ One container — includes Ollama and the Gemma 2B model. Just provide your mail
 | `MAIL_USER` | Email account username | *(required)* |
 | `MAIL_PASSWORD` | Email account password | *(required)* |
 | `MAIL_FROM` | Sender address for forwarded emails | `MAIL_USER` |
-| `OLLAMA_URL` | Ollama API endpoint | `http://ollama:11434` |
+| `OLLAMA_URL` | Ollama API endpoint | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Model for classification | `gemma2:2b` |
 | `MODE` | `daemon` (continuous) or `scheduled` (run-once) | *(required)* |
 | `INTERVAL` | Poll interval in daemon mode | `15m` |

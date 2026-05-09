@@ -76,7 +76,7 @@ export function loadConfig(rulesPath: string = "/app/config/rules.yaml"): Config
     },
     mailFrom: process.env.MAIL_FROM || required("MAIL_USER"),
     ollama: {
-      url: process.env.OLLAMA_URL || "http://ollama:11434",
+      url: process.env.OLLAMA_URL || "http://localhost:11434",
       model: process.env.OLLAMA_MODEL || "gemma2:2b",
     },
     mode,

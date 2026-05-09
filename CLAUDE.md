@@ -8,7 +8,7 @@ Docker-based email sorting using local Gemma model via Ollama + mail-mcp.
 - `npm run build` — compile TypeScript
 - `npm run test` — run unit tests
 - `npm run test:integration` — run integration tests (requires Docker)
-- `docker compose up` — start full stack
+- `docker run` — start container (includes Ollama)
 
 ## Architecture
 

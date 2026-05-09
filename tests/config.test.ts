@@ -42,7 +42,7 @@ describe("loadConfig", () => {
     delete process.env.OLLAMA_URL;
     const config = loadConfig("/dev/null");
     expect(config.imap.port).toBe(993);
-    expect(config.ollama.url).toBe("http://ollama:11434");
+    expect(config.ollama.url).toBe("http://localhost:11434");
   });
 
   it("throws on invalid MODE", () => {
