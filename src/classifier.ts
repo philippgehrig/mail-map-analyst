@@ -96,22 +96,35 @@ export class Classifier {
   }
 
   async ensureModel(): Promise<void> {
-    const url = `${this.config.url}/api/tags`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Cannot reach Ollama at ${this.config.url}`);
+    const maxRetries = 30;
+    const retryDelay = 2000;
 
-    const data = (await res.json()) as { models: Array<{ name: string }> };
-    const modelExists = data.models?.some((m) => m.name.startsWith(this.config.model));
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const res = await fetch(`${this.config.url}/api/tags`);
+        if (res.ok) {
+          const data = (await res.json()) as { models: Array<{ name: string }> };
+          const modelExists = data.models?.some((m) => m.name.startsWith(this.config.model));
 
-    if (!modelExists) {
-      this.logger.info("Pulling model", { model: this.config.model });
-      const pullRes = await fetch(`${this.config.url}/api/pull`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: this.config.model, stream: false }),
-      });
-      if (!pullRes.ok) throw new Error(`Failed to pull model: ${pullRes.statusText}`);
-      this.logger.info("Model pulled successfully");
+          if (!modelExists) {
+            this.logger.info("Pulling model", { model: this.config.model });
+            const pullRes = await fetch(`${this.config.url}/api/pull`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: this.config.model, stream: false }),
+            });
+            if (!pullRes.ok) throw new Error(`Failed to pull model: ${pullRes.statusText}`);
+            this.logger.info("Model pulled successfully");
+          }
+          return;
+        }
+      } catch {
+        if (i === maxRetries - 1) {
+          throw new Error(`Cannot reach Ollama at ${this.config.url} after ${maxRetries} attempts`);
+        }
+        this.logger.info("Waiting for Ollama", { attempt: i + 1, url: this.config.url });
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
     }
   }
 }

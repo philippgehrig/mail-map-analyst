@@ -19,14 +19,6 @@ RUN echo '{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolut
 
 FROM node:20-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    ca-certificates \
-    zstd \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -34,10 +26,8 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/mail-mcp/dist ./node_modules/mail-mcp/dist
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
 
-ENV OLLAMA_URL=http://localhost:11434
+ENV OLLAMA_URL=http://ollama:11434
 ENV OLLAMA_MODEL=gemma2:2b
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["node", "/app/dist/index.js"]
