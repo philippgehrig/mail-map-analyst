@@ -39,12 +39,28 @@ export class MailMcpClient {
         MAIL_USER: this.mailConfig.auth.user,
         MAIL_PASSWORD: this.mailConfig.auth.pass,
         MAIL_FROM: this.mailConfig.mailFrom,
+        TLS_REJECT_UNAUTHORIZED: process.env.TLS_REJECT_UNAUTHORIZED || "true",
       },
       stderr: "pipe",
     });
 
+    const stderrChunks: string[] = [];
+    this.transport.stderr?.on("data", (chunk: Buffer) => {
+      const line = chunk.toString().trim();
+      stderrChunks.push(line);
+      this.logger?.debug("mail-mcp stderr", { output: line });
+    });
+
     this.client = new Client({ name: "mail-map-analyst", version: "0.1.0" });
-    await this.client.connect(this.transport);
+    try {
+      await this.client.connect(this.transport);
+    } catch (err) {
+      const stderr = stderrChunks.join("\n");
+      if (stderr) {
+        this.logger?.error("mail-mcp failed to start", { stderr });
+      }
+      throw err;
+    }
     this.logger?.info("Connected to mail-mcp");
   }
 
