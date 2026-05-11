@@ -26,9 +26,16 @@ export class Pipeline {
   }
 
   async processOnce(): Promise<number> {
-    const messages = await this.mcpClient.searchMessages(this.rulesConfig.mailbox, {
-      withoutKeyword: "$classified",
-    }) as MessageSummary[];
+    let messages: MessageSummary[];
+    try {
+      messages = await this.mcpClient.searchMessages(this.rulesConfig.mailbox, {
+        withoutKeyword: "$classified",
+      }) as MessageSummary[];
+    } catch {
+      this.logger.debug("Keyword search not supported, falling back to list+filter");
+      const all = await this.mcpClient.listMessages(this.rulesConfig.mailbox) as MessageSummary[];
+      messages = all.filter((m) => !m.flags.includes("$classified"));
+    }
 
     if (messages.length === 0) {
       this.logger.debug("No unprocessed messages found");
