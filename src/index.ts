@@ -27,7 +27,7 @@ async function main() {
 
   if (config.mode === "daemon") {
     const intervalMs = parseInterval(config.interval);
-    const daemon = new Daemon(pipeline, logger, intervalMs);
+    const daemon = new Daemon(pipeline, mcpClient, logger, intervalMs);
 
     process.on("SIGTERM", () => {
       logger.info("Received SIGTERM, shutting down");

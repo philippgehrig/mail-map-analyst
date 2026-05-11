@@ -1,15 +1,18 @@
 import type { Pipeline } from "./pipeline.js";
+import type { MailMcpClient } from "./mcp-client.js";
 import type { Logger } from "./logger.js";
 
 export class Daemon {
   private pipeline: Pipeline;
+  private mcpClient: MailMcpClient;
   private logger: Logger;
   private intervalMs: number;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
-  constructor(pipeline: Pipeline, logger: Logger, intervalMs = 30000) {
+  constructor(pipeline: Pipeline, mcpClient: MailMcpClient, logger: Logger, intervalMs = 30000) {
     this.pipeline = pipeline;
+    this.mcpClient = mcpClient;
     this.logger = logger;
     this.intervalMs = intervalMs;
   }
@@ -35,9 +38,20 @@ export class Daemon {
     try {
       await this.pipeline.processOnce();
     } catch (err) {
-      this.logger.error("Daemon poll error", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error("Daemon poll error", { error: msg });
+
+      if (msg.includes("Connection closed") || msg.includes("not connected")) {
+        this.logger.info("Reconnecting mail-mcp");
+        try {
+          await this.mcpClient.reconnect();
+          this.logger.info("Reconnected to mail-mcp");
+        } catch (reconnectErr) {
+          this.logger.error("Reconnection failed", {
+            error: reconnectErr instanceof Error ? reconnectErr.message : String(reconnectErr),
+          });
+        }
+      }
     }
   }
 }

@@ -2,10 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 import { Daemon, parseInterval } from "../src/daemon.js";
 
 describe("Daemon", () => {
+  const mockMcpClient = { reconnect: vi.fn().mockResolvedValue(undefined) } as any;
+
   it("starts polling and can be stopped", async () => {
     const mockPipeline = { processOnce: vi.fn().mockResolvedValue(0) };
     const mockLogger = { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const daemon = new Daemon(mockPipeline as any, mockLogger, 100);
+    const daemon = new Daemon(mockPipeline as any, mockMcpClient, mockLogger, 100);
     daemon.start();
     await new Promise((r) => setTimeout(r, 350));
     daemon.stop();
@@ -15,7 +17,7 @@ describe("Daemon", () => {
   it("handles errors during poll without crashing", async () => {
     const mockPipeline = { processOnce: vi.fn().mockRejectedValue(new Error("fail")) };
     const mockLogger = { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
-    const daemon = new Daemon(mockPipeline as any, mockLogger, 100);
+    const daemon = new Daemon(mockPipeline as any, mockMcpClient, mockLogger, 100);
     daemon.start();
     await new Promise((r) => setTimeout(r, 150));
     daemon.stop();
